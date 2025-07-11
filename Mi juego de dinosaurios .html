@@ -1,0 +1,1121 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cavernícola vs Dinosaurios</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+    <!-- Tone.js library for background music -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #2c3e50; /* Dark blue-gray */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            overflow: hidden; /* Prevent scrollbars */
+        }
+        .game-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #34495e; /* Slightly lighter blue-gray */
+            border-radius: 15px;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+            padding: 20px;
+            max-width: 90vw; /* Responsive width */
+            width: 800px; /* Max width */
+            box-sizing: border-box;
+        }
+        canvas {
+            background-color: #1a2b3c; /* Even darker blue-gray for game area */
+            border: 5px solid #2980b9; /* Blue border */
+            border-radius: 10px;
+            display: block;
+            touch-action: none; /* Disable default touch actions */
+        }
+        .game-info {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            padding: 10px 0;
+            color: #ecf0f1; /* Light text */
+            font-size: 1.2em;
+            font-weight: bold;
+        }
+        .message-box {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(44, 62, 80, 0.95); /* Darker overlay */
+            border: 3px solid #2980b9;
+            border-radius: 10px;
+            padding: 30px 40px;
+            text-align: center;
+            color: #ecf0f1;
+            font-size: 1.5em;
+            font-weight: bold;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
+            z-index: 100;
+            display: none; /* Hidden by default */
+        }
+        .message-box button {
+            background-color: #27ae60; /* Green button */
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1em;
+            margin-top: 20px;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+        .message-box button:hover {
+            background-color: #2ecc71; /* Lighter green on hover */
+            transform: translateY(-2px);
+        }
+        .message-box button:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+        .controls {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .control-button {
+            background-color: #3498db; /* Blue button */
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1.1em;
+            font-weight: bold;
+            transition: background-color 0.3s ease, transform 0.2s ease, box-shadow 0.2s ease;
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4); /* More pronounced shadow */
+            border: 2px solid #2980b9; /* Add a border */
+            background-image: linear-gradient(to bottom right, #3498db, #2980b9); /* Gradient */
+        }
+        .control-button:hover {
+            background-color: #2980b9; /* Darker blue on hover */
+            transform: translateY(-3px); /* Lift button slightly */
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.6); /* More shadow on hover */
+            background-image: linear-gradient(to bottom right, #2980b9, #3498db); /* Reverse gradient on hover */
+        }
+        .control-button:active {
+            transform: translateY(0); /* Press button down */
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2); /* Smaller shadow on active */
+            background-image: linear-gradient(to bottom right, #3498db, #2980b9); /* Original gradient */
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div class="game-info">
+            <div id="score">Puntuación: 0</div>
+            <div id="lives">Vidas: 3</div>
+        </div>
+        <canvas id="gameCanvas"></canvas>
+
+        <div class="message-box" id="messageBox">
+            <p id="messageText"></p>
+            <button id="restartButton">Jugar de Nuevo</button>
+        </div>
+
+        <div class="controls">
+            <div class="control-button" id="leftButton">A (Izquierda)</div>
+            <div class="control-button" id="rightButton">D (Derecha)</div>
+            <div class="control-button" id="shootButton">Click (Lanzar)</div>
+            <div class="control-button" id="shieldButton">F (Escudo)</div>
+            <!-- Removed music toggle button as music is always on -->
+        </div>
+    </div>
+
+    <script>
+        // Velociraptor properties - moved declaration to the very top
+        let velociraptorSpawnInterval = 1000; // Faster spawn for velociraptors
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreDisplay = document.getElementById('score');
+        const livesDisplay = document.getElementById('lives');
+        const messageBox = document.getElementById('messageBox');
+        const messageText = document.getElementById('messageText');
+        const restartButton = document.getElementById('restartButton');
+        const leftButton = document.getElementById('leftButton');
+        const rightButton = document.getElementById('rightButton');
+        const shootButton = document.getElementById('shootButton');
+        const shieldButton = document.getElementById('shieldButton');
+        // Removed musicToggleButton reference
+
+        // Game state variables
+        let gameRunning = false;
+        let score = 0;
+        let lives = 3;
+
+        // Player (Caveman) properties
+        const playerWidth = 50;
+        const playerHeight = 75;
+        let playerX = canvas.width / 2 - playerWidth / 2;
+        let playerY = canvas.height - playerHeight - 10;
+        const playerSpeed = 1; // Reduced player speed for easier control
+        let playerMovingLeft = false;
+        let playerMovingRight = false;
+        let hasMultiSpear = false; // Power-up is now permanent
+        let isShieldActive = false; // New state for shield activation
+        let lastShotTime = 0; // Track time of last shot
+        const fireRate = 500; // 0.5 seconds in milliseconds
+
+        // Spears properties
+        const spearWidth = 10;
+        const spearHeight = 30;
+        const spearSpeed = 10;
+        let spears = [];
+
+        // Dinosaurs properties
+        const dinosaurWidth = 60;
+        const dinosaurHeight = 70;
+        let dinosaurSpeed = 0.1; // Reduced dinosaur speed
+        let dinosaurSpawnInterval = 1500; // milliseconds, can change dynamically
+        let dinosaurs = [];
+        let lastDinosaurSpawnTime = 0;
+        let dinosaurSpawnRateIncreased = false; // Flag to track if spawn rate has increased
+
+        // Velociraptor properties
+        const velociraptorWidth = 50;
+        const velociraptorHeight = 60;
+        const velociraptorSpeed = 0.2; // Reduced velociraptor speed
+        let velociraptors = [];
+        let lastVelociraptorSpawnTime = 0;
+        const velociraptorSpawnScoreThreshold = 100; // Score to start spawning velociraptors
+
+        // Giganotosaurus (regular enemies) properties
+        const giganotosaurusWidth = 80;
+        const giganotosaurusHeight = 90;
+        const giganotosaurusSpeed = 0.05; // Reduced Giganotosaurus speed
+        const giganotosaurusSpawnInterval = 5000; // milliseconds, less frequent spawn
+        const giganotosaurusShootInterval = 800; // milliseconds, shoots frequently
+        let giganotosauruses = [];
+        let lastGiganotosaurusSpawnTime = 0;
+        const regularGiganotosaurusSpawnScoreThreshold = 500; // Score to start spawning regular Giganotosaurus
+
+        // Boss Giganotosaurus properties
+        const bossGiganotosaurusWidth = 120; // Larger boss size
+        const bossGiganotosaurusHeight = 130;
+        const bossStoneRadius = 12; // Larger stones
+        const bossHealthMax = 5; // 5 hits to die
+        const bossSpawnScoreThreshold = 1000; // Score to trigger boss fight
+        const bossShootInterval = 1200; // Slower shooting for boss
+        let bossActive = false; // Is boss currently active?
+        let bossHealth = 0; // Current boss health
+        let boss = null; // The boss object
+        let isBossFight = false; // Flag to indicate boss fight mode
+
+        // Stones (projectiles) properties
+        const stoneRadius = 8; // Default stone radius
+        const stoneSpeed = 1; // Reduced stone speed
+        let stones = [];
+        const dinosaurShootInterval = 1000; // milliseconds
+
+        // Power-up properties
+        const powerUpWidth = 25;
+        const powerUpHeight = 25;
+        const powerUpSpeed = 3;
+        let powerUps = [];
+        const powerUpDropChance = 0.2; // 20% chance for a dinosaur to drop a power-up
+
+        // Sound effects (using AudioContext for simple beeps)
+        let audioContext;
+
+        function initAudioContext() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+
+        function playSound(type) {
+            initAudioContext();
+            let oscillator;
+            let gainNode = audioContext.createGain();
+            gainNode.connect(audioContext.destination);
+
+            switch (type) {
+                case 'shoot':
+                    oscillator = audioContext.createOscillator();
+                    oscillator.type = 'sine';
+                    oscillator.frequency.setValueAtTime(440, audioContext.currentTime); // A4
+                    gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
+                    gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.1);
+                    oscillator.connect(gainNode);
+                    oscillator.start();
+                    oscillator.stop(audioContext.currentTime + 0.1);
+                    break;
+                case 'hit':
+                    oscillator = audioContext.createOscillator();
+                    oscillator.type = 'square';
+                    oscillator.frequency.setValueAtTime(220, audioContext.currentTime); // A3
+                    gainNode.gain.setValueAtTime(0.2, audioContext.currentTime);
+                    gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.15);
+                    oscillator.connect(gainNode);
+                    oscillator.start();
+                    oscillator.stop(audioContext.currentTime + 0.15);
+                    break;
+                case 'gameOver':
+                    oscillator = audioContext.createOscillator();
+                    oscillator.type = 'sawtooth';
+                    oscillator.frequency.setValueAtTime(100, audioContext.currentTime); // Low frequency
+                    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                    gainNode.gain.linearRampToValueAtTime(0.001, audioContext.currentTime + 0.5);
+                    oscillator.connect(gainNode);
+                    oscillator.start();
+                    oscillator.stop(audioContext.currentTime + 0.5);
+                    break;
+                case 'shield':
+                    oscillator = audioContext.createOscillator();
+                    oscillator.type = 'triangle';
+                    oscillator.frequency.setValueAtTime(660, audioContext.currentTime); // E5
+                    gainNode.gain.setValueAtTime(0.15, audioContext.currentTime);
+                    gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.2);
+                    oscillator.connect(gainNode);
+                    oscillator.start();
+                    oscillator.stop(audioContext.currentTime + 0.2);
+                    break;
+            }
+        }
+
+        // Background Music (Tone.js)
+        let synth;
+        let loop;
+
+        function initMusic() {
+            // Create a simple synth
+            synth = new Tone.PolySynth(Tone.Synth, {
+                oscillator: {
+                    type: "triangle"
+                },
+                envelope: {
+                    attack: 0.005,
+                    decay: 0.1,
+                    sustain: 0.3,
+                    release: 1
+                }
+            }).toDestination();
+
+            // A more varied melodic loop to reduce repetitiveness
+            const notes = [
+                "C4", "E4", "G4", "A4", "G4", "E4", "C4", // Original phrase
+                "D4", "F4", "A4", "B4", "A4", "F4", "D4", // Similar phrase, shifted up
+                "E4", "G4", "C5", "B4", "A4", "G4", "E4", // More varied phrase with higher notes
+                "C4", "G3", "C4", "E4", "G4", "C5", "G4", "E4" // Arpeggiated and descending
+            ];
+            let noteIndex = 0;
+
+            loop = new Tone.Loop(time => {
+                synth.triggerAttackRelease(notes[noteIndex % notes.length], "8n", time);
+                noteIndex++;
+            }, "0.5").start(0); // Play every 0.5 seconds
+
+            Tone.Transport.bpm.value = 120; // Set tempo
+        }
+
+        // Player drawing (more human-like)
+        function drawPlayer() {
+            // Body (torso)
+            ctx.fillStyle = '#e67e22'; // Orange-brown for caveman body
+            ctx.fillRect(playerX + 10, playerY + 15, playerWidth - 20, playerHeight - 30); // Adjusted height for torso
+
+            // Legs
+            ctx.fillRect(playerX + 10, playerY + playerHeight - 15, 10, 25); // Left leg, adjusted Y
+            ctx.fillRect(playerX + playerWidth - 20, playerY + playerHeight - 15, 10, 25); // Right leg, adjusted Y
+
+            // Head
+            ctx.fillStyle = '#f1c40f'; // Yellow for head
+            ctx.beginPath();
+            ctx.arc(playerX + playerWidth / 2, playerY + 10, 15, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Arms (simple rectangles)
+            ctx.fillStyle = '#e67e22'; // Orange-brown for arms
+            ctx.fillRect(playerX, playerY + 20, 10, 30); // Left arm
+            ctx.fillRect(playerX + playerWidth - 10, playerY + 20, 10, 30); // Right arm
+
+            // Spear in hand (visual only)
+            ctx.fillStyle = '#bdc3c7'; // Gray for spear shaft
+            ctx.fillRect(playerX + playerWidth / 2 - 2, playerY - 30, 4, 30);
+            ctx.fillStyle = '#c0392b'; // Red for spear tip
+            ctx.beginPath();
+            ctx.moveTo(playerX + playerWidth / 2, playerY - 30);
+            ctx.lineTo(playerX + playerWidth / 2 - 7, playerY - 45);
+            ctx.lineTo(playerX + playerWidth / 2 + 7, playerY - 45);
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        // Spear drawing
+        function drawSpear(spear) {
+            ctx.fillStyle = '#bdc3c7'; // Gray for spear shaft
+            ctx.fillRect(spear.x, spear.y, spearWidth, spearHeight);
+            ctx.fillStyle = '#c0392b'; // Red for spear tip
+            ctx.beginPath();
+            ctx.moveTo(spear.x + spearWidth / 2, spear.y);
+            ctx.lineTo(spear.x + spearWidth / 2 - 5, spear.y - 15);
+            ctx.lineTo(spear.x + spearWidth / 2 + 5, spear.y - 15);
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        // Dinosaur drawing (with small arms, eyes, and mouth)
+        function drawDinosaur(dinosaur) {
+            ctx.fillStyle = '#2ecc71'; // Green for dinosaur body
+            ctx.fillRect(dinosaur.x, dinosaur.y, dinosaurWidth, dinosaurHeight);
+
+            // Head
+            ctx.fillStyle = '#27ae60'; // Darker green
+            ctx.beginPath();
+            ctx.arc(dinosaur.x + dinosaurWidth / 2, dinosaur.y - 10, 15, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Spikes (simple triangles)
+            ctx.fillStyle = '#c0392b'; // Red spikes
+            ctx.beginPath();
+            ctx.moveTo(dinosaur.x + 10, dinosaur.y + dinosaurHeight);
+            ctx.lineTo(dinosaur.x + 20, dinosaur.y + dinosaurHeight + 15);
+            ctx.lineTo(dinosaur.x + 30, dinosaur.y + dinosaurHeight);
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.moveTo(dinosaur.x + 30, dinosaur.y + dinosaurHeight);
+            ctx.lineTo(dinosaur.x + 40, dinosaur.y + dinosaurHeight + 15);
+            ctx.lineTo(dinosaur.x + 50, dinosaur.y + dinosaurHeight);
+            ctx.fill();
+
+            // Small arms
+            ctx.fillStyle = '#27ae60'; // Darker green for arms
+            ctx.fillRect(dinosaur.x + 5, dinosaur.y + 30, 15, 10); // Left arm
+            ctx.fillRect(dinosaur.x + dinosaurWidth - 20, dinosaur.y + 30, 15, 10); // Right arm
+
+            // Eyes
+            ctx.fillStyle = 'white';
+            ctx.beginPath();
+            ctx.arc(dinosaur.x + dinosaurWidth / 2 - 7, dinosaur.y - 12, 3, 0, Math.PI * 2); // Left eye
+            ctx.arc(dinosaur.x + dinosaurWidth / 2 + 7, dinosaur.y - 12, 3, 0, Math.PI * 2); // Right eye
+            ctx.fill();
+            ctx.fillStyle = 'black';
+            ctx.beginPath();
+            ctx.arc(dinosaur.x + dinosaurWidth / 2 - 7, dinosaur.y - 12, 1, 0, Math.PI * 2); // Left pupil
+            ctx.arc(dinosaur.x + dinosaurWidth / 2 + 7, dinosaur.y - 12, 1, 0, Math.PI * 2); // Right pupil
+            ctx.fill();
+
+            // Mouth
+            ctx.strokeStyle = 'black';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.arc(dinosaur.x + dinosaurWidth / 2, dinosaur.y - 5, 8, 0, Math.PI, false); // Simple curved mouth
+            ctx.stroke();
+        }
+
+        // Velociraptor drawing (distinct from regular dinosaurs)
+        function drawVelociraptor(velociraptor) {
+            ctx.fillStyle = '#a0522d'; // Brown for velociraptor body
+            ctx.fillRect(velociraptor.x, velociraptor.y, velociraptorWidth, velociraptorHeight);
+
+            // Head (more pointed)
+            ctx.fillStyle = '#8b4513'; // Darker brown
+            ctx.beginPath();
+            ctx.moveTo(velociraptor.x + velociraptorWidth / 2, velociraptor.y - 15);
+            ctx.lineTo(velociraptor.x + velociraptorWidth / 2 - 10, velociraptor.y + 5);
+            ctx.lineTo(velociraptor.x + velociraptorWidth / 2 + 10, velociraptor.y + 5);
+            ctx.closePath();
+            ctx.fill();
+
+            // Small arms (similar to dinosaur, but maybe smaller)
+            ctx.fillStyle = '#8b4513'; // Darker brown for arms
+            ctx.fillRect(velociraptor.x + 5, velociraptor.y + 25, 10, 8); // Left arm
+            ctx.fillRect(velociraptor.x + velociraptorWidth - 15, velociraptor.y + 25, 10, 8); // Right arm
+
+            // Eyes
+            ctx.fillStyle = 'white';
+            ctx.beginPath();
+            ctx.arc(velociraptor.x + velociraptorWidth / 2 - 5, velociraptor.y - 8, 2, 0, Math.PI * 2); // Left eye
+            ctx.arc(velociraptor.x + velociraptorWidth / 2 + 5, velociraptor.y - 8, 2, 0, Math.PI * 2); // Right eye
+            ctx.fill();
+            ctx.fillStyle = 'black';
+            ctx.beginPath();
+            ctx.arc(velociraptor.x + velociraptorWidth / 2 - 5, velociraptor.y - 8, 1, 0, Math.PI * 2); // Left pupil
+            ctx.arc(velociraptor.x + velociraptorWidth / 2 + 5, velociraptor.y - 8, 1, 0, Math.PI * 2); // Right pupil
+            ctx.fill();
+
+            // Mouth (simple line)
+            ctx.strokeStyle = 'black';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(velociraptor.x + velociraptorWidth / 2 - 8, velociraptor.y);
+            ctx.lineTo(velociraptor.x + velociraptorWidth / 2 + 8, velociraptor.y);
+            ctx.stroke();
+        }
+
+        // Giganotosaurus drawing (larger, distinct color, small arms, eyes, mouth)
+        function drawGiganotosaurus(giganotosaurus) {
+            ctx.fillStyle = '#5a5a5a'; // Dark grey for giganotosaurus body
+            ctx.fillRect(giganotosaurus.x, giganotosaurus.y, giganotosaurusWidth, giganotosaurusHeight);
+
+            // Head (larger, more pronounced)
+            ctx.fillStyle = '#4a4a4a'; // Even darker grey
+            ctx.beginPath();
+            ctx.arc(giganotosaurus.x + giganotosaurusWidth / 2, giganotosaurus.y - 15, 20, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Spikes (larger triangles)
+            ctx.fillStyle = '#c0392b'; // Red spikes
+            ctx.beginPath();
+            ctx.moveTo(giganotosaurus.x + 15, giganotosaurus.y + giganotosaurusHeight);
+            ctx.lineTo(giganotosaurus.x + 30, giganotosaurus.y + giganotosaurusHeight + 20);
+            ctx.lineTo(giganotosaurus.x + 45, giganotosaurus.y + giganotosaurusHeight);
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.moveTo(giganotosaurus.x + 45, giganotosaurus.y + giganotosaurusHeight);
+            ctx.lineTo(giganotosaurus.x + 60, giganotosaurus.y + giganotosaurusHeight + 20);
+            ctx.lineTo(giganotosaurus.x + 75, giganotosaurus.y + giganotosaurusHeight);
+            ctx.fill();
+
+            // Small arms (proportionally small for its size)
+            ctx.fillStyle = '#4a4a4a'; // Darker grey for arms
+            ctx.fillRect(giganotosaurus.x + 10, giganotosaurus.y + 40, 20, 12); // Left arm
+            ctx.fillRect(giganotosaurus.x + giganotosaurusWidth - 30, giganotosaurus.y + 40, 20, 12); // Right arm
+
+            // Eyes
+            ctx.fillStyle = 'red'; // Red eyes for a more menacing look
+            ctx.beginPath();
+            ctx.arc(giganotosaurus.x + giganotosaurusWidth / 2 - 10, giganotosaurus.y - 18, 4, 0, Math.PI * 2); // Left eye
+            ctx.arc(giganotosaurus.x + giganotosaurusWidth / 2 + 10, giganotosaurus.y - 18, 4, 0, Math.PI * 2); // Right eye
+            ctx.fill();
+
+            // Mouth (jagged for teeth)
+            ctx.strokeStyle = 'black';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(giganotosaurus.x + giganotosaurusWidth / 2 - 15, giganotosaurus.y - 8);
+            ctx.lineTo(giganotosaurus.x + giganotosaurusWidth / 2 - 5, giganotosaurus.y - 12);
+            ctx.lineTo(giganotosaurus.x + giganotosaurusWidth / 2 + 5, giganotosaurus.y - 12);
+            ctx.lineTo(giganotosaurus.x + giganotosaurusWidth / 2 + 15, giganotosaurus.y - 8);
+            ctx.stroke();
+        }
+
+        // Boss Giganotosaurus drawing (distinct from regular Giganotosaurus)
+        function drawBossGiganotosaurus(boss) {
+            ctx.fillStyle = '#8b0000'; // Dark red for boss body
+            ctx.fillRect(boss.x, boss.y, boss.width, boss.height);
+
+            // Head (larger, more pronounced)
+            ctx.fillStyle = '#660000'; // Even darker red
+            ctx.beginPath();
+            ctx.arc(boss.x + boss.width / 2, boss.y - 20, 25, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Spikes (larger triangles)
+            ctx.fillStyle = '#ff4500'; // Orange-red spikes
+            ctx.beginPath();
+            ctx.moveTo(boss.x + 20, boss.y + boss.height);
+            ctx.lineTo(boss.x + 40, boss.y + boss.height + 25);
+            ctx.lineTo(boss.x + 60, boss.y + boss.height);
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.moveTo(boss.x + 60, boss.y + boss.height);
+            ctx.lineTo(boss.x + 80, boss.y + boss.height + 25);
+            ctx.lineTo(boss.x + 100, boss.y + boss.height);
+            ctx.fill();
+
+            // Small arms (proportionally small for its size)
+            ctx.fillStyle = '#660000'; // Darker red for arms
+            ctx.fillRect(boss.x + 15, boss.y + 50, 25, 15); // Left arm
+            ctx.fillRect(boss.x + boss.width - 40, boss.y + 50, 25, 15); // Right arm
+
+            // Eyes
+            ctx.fillStyle = 'yellow'; // Yellow eyes for a more menacing look
+            ctx.beginPath();
+            ctx.arc(boss.x + boss.width / 2 - 15, boss.y - 25, 5, 0, Math.PI * 2); // Left eye
+            ctx.arc(boss.x + boss.width / 2 + 15, boss.y - 25, 5, 0, Math.PI * 2); // Right eye
+            ctx.fill();
+
+            // Mouth (jagged for teeth)
+            ctx.strokeStyle = 'black';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(boss.x + boss.width / 2 - 20, boss.y - 10);
+            ctx.lineTo(boss.x + boss.width / 2 - 10, boss.y - 18);
+            ctx.lineTo(boss.x + boss.width / 2 + 10, boss.y - 18);
+            ctx.lineTo(boss.x + boss.width / 2 + 20, boss.y - 10);
+            ctx.stroke();
+
+            // Health bar for the boss
+            const healthBarWidth = boss.width * 0.8;
+            const healthBarHeight = 10;
+            const healthBarX = boss.x + (boss.width - healthBarWidth) / 2;
+            const healthBarY = boss.y - 30;
+
+            ctx.fillStyle = 'red';
+            ctx.fillRect(healthBarX, healthBarY, healthBarWidth, healthBarHeight);
+
+            ctx.fillStyle = 'lime'; // Green for remaining health
+            const currentHealthWidth = (bossHealth / bossHealthMax) * healthBarWidth;
+            ctx.fillRect(healthBarX, healthBarY, currentHealthWidth, healthBarHeight);
+
+            ctx.strokeStyle = 'black';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(healthBarX, healthBarY, healthBarWidth, healthBarHeight);
+        }
+
+        // Stone drawing
+        function drawStone(stone) {
+            ctx.fillStyle = '#95a5a6'; // Gray for stone
+            ctx.beginPath();
+            ctx.arc(stone.x, stone.y, stone.radius, 0, Math.PI * 2); // Use stone.radius
+            ctx.fill();
+        }
+
+        // Power-up drawing
+        function drawPowerUp(powerUp) {
+            ctx.fillStyle = '#f39c12'; // Orange for power-up
+            ctx.fillRect(powerUp.x, powerUp.y, powerUpWidth, powerUpHeight);
+            // Add a simple icon for multi-spear (e.g., three small triangles)
+            if (powerUp.type === 'multi-spear') {
+                ctx.fillStyle = 'white';
+                ctx.beginPath();
+                ctx.moveTo(powerUp.x + powerUpWidth * 0.2, powerUp.y + powerUpHeight * 0.8);
+                ctx.lineTo(powerUp.x + powerUpWidth * 0.3, powerUp.y + powerUpHeight * 0.2);
+                ctx.lineTo(powerUp.x + powerUpWidth * 0.4, powerUp.y + powerUpHeight * 0.8);
+                ctx.fill();
+
+                ctx.beginPath();
+                ctx.moveTo(powerUp.x + powerUpWidth * 0.4, powerUp.y + powerUpHeight * 0.8);
+                ctx.lineTo(powerUp.x + powerUpWidth * 0.5, powerUp.y + powerUpHeight * 0.2);
+                ctx.lineTo(powerUp.x + powerUpWidth * 0.6, powerUp.y + powerUpHeight * 0.8);
+                ctx.fill();
+
+                ctx.beginPath();
+                ctx.moveTo(powerUp.x + powerUpWidth * 0.6, powerUp.y + powerUpHeight * 0.8);
+                ctx.lineTo(powerUp.x + powerUpWidth * 0.7, powerUp.y + powerUpHeight * 0.2);
+                ctx.lineTo(powerUp.x + powerUpWidth * 0.8, powerUp.y + powerUpHeight * 0.8);
+                ctx.fill();
+            }
+        }
+
+        // Shield drawing
+        function drawShield() {
+            if (isShieldActive) {
+                ctx.fillStyle = 'rgba(100, 150, 255, 0.5)'; // Translucent blue
+                ctx.beginPath();
+                // Draw a circle around the player
+                ctx.arc(playerX + playerWidth / 2, playerY + playerHeight / 2, playerWidth * 0.8, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(100, 150, 255, 0.8)'; // More opaque blue border
+                ctx.lineWidth = 3;
+                ctx.stroke();
+            }
+        }
+
+        // Resize canvas function
+        function resizeCanvas() {
+            canvas.width = Math.min(window.innerWidth * 0.95, 1200); // Increased width
+            canvas.height = Math.min(window.innerHeight * 0.9, 900); // Increased height
+            playerX = canvas.width / 2 - playerWidth / 2;
+            playerY = canvas.height - playerHeight - 10;
+            draw(); // Redraw game elements
+        }
+
+        // Initial resize and event listener for window resize
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas(); // Call once on load
+
+        // Update game logic
+        function update() {
+            if (!gameRunning) return;
+
+            // Player movement
+            if (playerMovingLeft && playerX > 0) {
+                playerX -= playerSpeed;
+            }
+            if (playerMovingRight && playerX + playerWidth < canvas.width) {
+                playerX += playerSpeed;
+            }
+
+            // Update spears
+            for (let i = spears.length - 1; i >= 0; i--) {
+                spears[i].y -= spearSpeed;
+                if (spears[i].y < 0) {
+                    spears.splice(i, 1); // Remove if off-screen
+                }
+            }
+
+            const currentTime = Date.now();
+
+            // Boss spawn logic
+            if (score >= bossSpawnScoreThreshold && !bossActive && !isBossFight) {
+                isBossFight = true; // Activate boss fight mode
+                bossActive = true;
+                bossHealth = bossHealthMax; // Set boss health
+                // Spawn boss in the middle top, stationary
+                boss = {
+                    x: canvas.width / 2 - bossGiganotosaurusWidth / 2,
+                    y: 50, // Fixed Y position
+                    lastShotTime: currentTime,
+                    width: bossGiganotosaurusWidth,
+                    height: bossGiganotosaurusHeight
+                };
+                // Clear existing enemies and projectiles for boss fight focus
+                dinosaurs = [];
+                velociraptors = [];
+                giganotosauruses = [];
+                powerUps = [];
+                stones = [];
+            }
+
+            // Handle boss logic if active
+            if (bossActive) {
+                // Boss shooting (3 larger stones at once)
+                if (currentTime - boss.lastShotTime > bossShootInterval) {
+                    stones.push({ x: boss.x + boss.width / 2, y: boss.y + boss.height, radius: bossStoneRadius }); // Middle
+                    stones.push({ x: boss.x + boss.width / 2 - 25, y: boss.y + boss.height, radius: bossStoneRadius }); // Left
+                    stones.push({ x: boss.x + boss.width / 2 + 25, y: boss.y + boss.height, radius: bossStoneRadius }); // Right
+                    boss.lastShotTime = currentTime;
+                }
+                // Boss does not move, so no position update
+            } else { // Only spawn other enemies if boss is not active
+                // Increase dinosaur spawn rate at 500 points
+                if (score >= regularGiganotosaurusSpawnScoreThreshold && !dinosaurSpawnRateIncreased) {
+                    dinosaurSpawnInterval = 750; // Faster spawn for regular dinosaurs
+                    dinosaurSpawnRateIncreased = true;
+                }
+
+                // Spawn dinosaurs
+                if (currentTime - lastDinosaurSpawnTime > dinosaurSpawnInterval) {
+                    const x = Math.random() * (canvas.width - dinosaurWidth);
+                    dinosaurs.push({ x: x, y: 0, lastShotTime: currentTime });
+                    lastDinosaurSpawnTime = currentTime;
+                }
+
+                // Spawn Velociraptors if score threshold is met
+                if (score >= velociraptorSpawnScoreThreshold && currentTime - lastVelociraptorSpawnTime > velociraptorSpawnInterval) {
+                    const x = Math.random() * (canvas.width - velociraptorWidth);
+                    velociraptors.push({ x: x, y: 0 }); // Velociraptors don't shoot, so no lastShotTime needed
+                    lastVelociraptorSpawnTime = currentTime;
+                }
+
+                // Spawn regular Giganotosaurus if score threshold is met
+                if (score >= regularGiganotosaurusSpawnScoreThreshold && currentTime - lastGiganotosaurusSpawnTime > giganotosaurusSpawnInterval) {
+                    const x = Math.random() * (canvas.width - giganotosaurusWidth);
+                    giganotosauruses.push({ x: x, y: 0, lastShotTime: currentTime }); // Regular Giganotosaurus shoots
+                    lastGiganotosaurusSpawnTime = currentTime;
+                }
+            }
+
+
+            // Update dinosaurs and make them shoot
+            for (let i = dinosaurs.length - 1; i >= 0; i--) {
+                dinosaurs[i].y += dinosaurSpeed;
+
+                // Dinosaur shooting
+                if (currentTime - dinosaurs[i].lastShotTime > dinosaurShootInterval) {
+                    stones.push({ x: dinosaurs[i].x + dinosaurWidth / 2, y: dinosaurs[i].y + dinosaurHeight, radius: stoneRadius });
+                    dinosaurs[i].lastShotTime = currentTime;
+                }
+
+                if (dinosaurs[i].y + dinosaurHeight > canvas.height) {
+                    // Dinosaur reached bottom, game over
+                    endGame("¡Un dinosaurio ha llegado al final! ¡Fin del juego!");
+                    return;
+                }
+            }
+
+            // Update velociraptors
+            for (let i = velociraptors.length - 1; i >= 0; i--) {
+                velociraptors[i].y += velociraptorSpeed;
+                if (velociraptors[i].y + velociraptorHeight > canvas.height) {
+                    // Velociraptor reached bottom, game over
+                    endGame("¡Un velociraptor ha llegado al final! ¡Fin del juego!");
+                    return;
+                }
+            }
+
+            // Update regular giganotosauruses and make them shoot
+            for (let i = giganotosauruses.length - 1; i >= 0; i--) {
+                giganotosauruses[i].y += giganotosaurusSpeed;
+
+                // Regular Giganotosaurus shooting (3 stones at once)
+                if (currentTime - giganotosauruses[i].lastShotTime > giganotosaurusShootInterval) {
+                    stones.push({ x: giganotosauruses[i].x + giganotosaurusWidth / 2, y: giganotosauruses[i].y + giganotosaurusHeight, radius: stoneRadius }); // Middle
+                    stones.push({ x: giganotosauruses[i].x + giganotosaurusWidth / 2 - 15, y: giganotosauruses[i].y + giganotosaurusHeight, radius: stoneRadius }); // Left
+                    stones.push({ x: giganotosauruses[i].x + giganotosaurusWidth / 2 + 15, y: giganotosauruses[i].y + giganotosaurusHeight, radius: stoneRadius }); // Right
+                    giganotosauruses[i].lastShotTime = currentTime;
+                }
+
+                if (giganotosauruses[i].y + giganotosaurusHeight > canvas.height) {
+                    // Giganotosaurus reached bottom, game over
+                    endGame("¡Un Giganotosaurio ha llegado al final! ¡Fin del juego!");
+                    return;
+                }
+            }
+
+            // Update stones
+            for (let i = stones.length - 1; i >= 0; i--) {
+                stones[i].y += stoneSpeed;
+                if (stones[i].y > canvas.height) {
+                    stones.splice(i, 1); // Remove if off-screen
+                }
+            }
+
+            // Update power-ups
+            for (let i = powerUps.length - 1; i >= 0; i--) {
+                powerUps[i].y += powerUpSpeed;
+                if (powerUps[i].y > canvas.height) {
+                    powerUps.splice(i, 1); // Remove if off-screen
+                }
+            }
+
+            // Collision detection: Spear vs Dinosaur
+            for (let i = spears.length - 1; i >= 0; i--) {
+                for (let j = dinosaurs.length - 1; j >= 0; j--) {
+                    if (
+                        spears[i].x < dinosaurs[j].x + dinosaurWidth &&
+                        spears[i].x + spearWidth > dinosaurs[j].x &&
+                        spears[i].y < dinosaurs[j].y + dinosaurHeight &&
+                        spears[i].y + spearHeight > dinosaurs[j].y
+                    ) {
+                        // Collision! Remove spear and dinosaur
+                        spears.splice(i, 1);
+                        const defeatedDinosaur = dinosaurs.splice(j, 1)[0];
+                        score += 10; // Increase score
+                        scoreDisplay.textContent = `Puntuación: ${score}`;
+                        playSound('hit'); // Play hit sound
+                        // Randomly drop a power-up
+                        if (Math.random() < powerUpDropChance) {
+                            powerUps.push({
+                                x: defeatedDinosaur.x + dinosaurWidth / 2 - powerUpWidth / 2,
+                                y: defeatedDinosaur.y + dinosaurHeight / 2,
+                                type: 'multi-spear' // Currently only one type
+                            });
+                        }
+                        break; // Break inner loop as spear is removed
+                    }
+                }
+            }
+
+            // Collision detection: Spear vs Velociraptor
+            for (let i = spears.length - 1; i >= 0; i--) {
+                for (let j = velociraptors.length - 1; j >= 0; j--) {
+                    if (
+                        spears[i].x < velociraptors[j].x + velociraptorWidth &&
+                        spears[i].x + spearWidth > velociraptors[j].x &&
+                        spears[i].y < velociraptors[j].y + velociraptorHeight &&
+                        spears[i].y + spearHeight > velociraptors[j].y
+                    ) {
+                        // Collision! Remove spear and velociraptor
+                        spears.splice(i, 1);
+                        velociraptors.splice(j, 1);
+                        score += 15; // Velociraptors give more points
+                        scoreDisplay.textContent = `Puntuación: ${score}`;
+                        playSound('hit'); // Play hit sound
+                        break; // Break inner loop as spear is removed
+                    }
+                }
+            }
+
+            // Collision detection: Spear vs Regular Giganotosaurus
+            for (let i = spears.length - 1; i >= 0; i--) {
+                for (let j = giganotosauruses.length - 1; j >= 0; j--) {
+                    if (
+                        spears[i].x < giganotosauruses[j].x + giganotosaurusWidth &&
+                        spears[i].x + spearWidth > giganotosauruses[j].x &&
+                        spears[i].y < giganotosauruses[j].y + giganotosaurusHeight &&
+                        spears[i].y + spearHeight > giganotosauruses[j].y
+                    ) {
+                        // Collision! Remove spear and regular giganotosaurus
+                        spears.splice(i, 1);
+                        giganotosauruses.splice(j, 1);
+                        score += 50; // Regular Giganotosaurus gives significantly more points
+                        scoreDisplay.textContent = `Puntuación: ${score}`;
+                        playSound('hit'); // Play hit sound
+                        break; // Break inner loop as spear is removed
+                    }
+                }
+            }
+
+            // Collision detection: Spear vs Boss Giganotosaurus
+            if (bossActive) {
+                for (let i = spears.length - 1; i >= 0; i--) {
+                    if (
+                        spears[i].x < boss.x + boss.width &&
+                        spears[i].x + spearWidth > boss.x &&
+                        spears[i].y < boss.y + boss.height &&
+                        spears[i].y + spearHeight > boss.y
+                    ) {
+                        spears.splice(i, 1); // Remove spear
+                        bossHealth--; // Decrease boss health
+                        playSound('hit'); // Play hit sound
+                        if (bossHealth <= 0) {
+                            // Boss defeated!
+                            bossActive = false;
+                            isBossFight = false; // End boss fight mode
+                            score += 200; // Bonus points for defeating boss
+                            scoreDisplay.textContent = `Puntuación: ${score}`;
+                            messageText.textContent = "¡Has derrotado al Giganotosaurio Jefe!";
+                            messageBox.style.display = 'block';
+                            // Resume normal enemy spawning, possibly with increased difficulty
+                            dinosaurSpawnRateIncreased = false; // Reset to allow re-triggering if needed
+                            dinosaurSpawnInterval = 1000; // Make normal dinosaurs faster after boss
+                            velociraptorSpawnInterval = 800; // Make velociraptors faster
+                        }
+                        break; // Break inner loop as spear is removed
+                    }
+                }
+            }
+
+            // Collision detection: Stone vs Player
+            for (let i = stones.length - 1; i >= 0; i--) {
+                // Use stone.radius for collision check as boss stones have different radius
+                const currentStoneRadius = stones[i].radius || stoneRadius; // Default to normal stoneRadius
+                if (
+                    stones[i].x > playerX - currentStoneRadius &&
+                    stones[i].x < playerX + playerWidth + currentStoneRadius &&
+                    stones[i].y > playerY - currentStoneRadius &&
+                    stones[i].y < playerY + playerHeight + currentStoneRadius
+                ) {
+                    // Collision!
+                    if (isShieldActive) {
+                        stones.splice(i, 1); // Stone is blocked by shield, remove it without damage
+                        playSound('shield'); // Play shield sound on block
+                    } else {
+                        stones.splice(i, 1); // Remove stone, decrease life
+                        lives--;
+                        livesDisplay.textContent = `Vidas: ${lives}`;
+                        playSound('hit'); // Play hit sound for player
+                        if (lives <= 0) {
+                            endGame("¡Te han golpeado demasiadas veces! ¡Fin del juego!");
+                            return;
+                        }
+                    }
+                    break; // Break as stone is handled
+                }
+            }
+
+            // Collision detection: Player vs Velociraptor
+            for (let i = velociraptors.length - 1; i >= 0; i--) {
+                if (
+                    playerX < velociraptors[i].x + velociraptorWidth &&
+                    playerX + playerWidth > velociraptors[i].x &&
+                    playerY < velociraptors[i].y + velociraptorHeight &&
+                    playerY + playerHeight > velociraptors[i].y
+                ) {
+                    // Player collided with velociraptor!
+                    velociraptors.splice(i, 1); // Remove velociraptor on collision
+                    lives--;
+                    livesDisplay.textContent = `Vidas: ${lives}`;
+                    playSound('hit'); // Play hit sound for player
+                    if (lives <= 0) {
+                        endGame("¡Un velociraptor te ha alcanzado! ¡Fin del juego!");
+                        return;
+                    }
+                    break; // Break as velociraptor is handled
+                }
+            }
+
+            // Collision detection: Player vs Regular Giganotosaurus
+            for (let i = giganotosauruses.length - 1; i >= 0; i--) {
+                if (
+                    playerX < giganotosauruses[i].x + giganotosaurusWidth &&
+                    playerX + playerWidth > giganotosauruses[i].x &&
+                    playerY < giganotosauruses[i].y + giganotosaurusHeight &&
+                    playerY + playerHeight > giganotosauruses[i].y
+                ) {
+                    // Player collided with giganotosaurus!
+                    giganotosauruses.splice(i, 1); // Remove giganotosaurus on collision
+                    lives--;
+                    livesDisplay.textContent = `Vidas: ${lives}`;
+                    playSound('hit'); // Play hit sound for player
+                    if (lives <= 0) {
+                        endGame("¡Un Giganotosaurio te ha alcanzado! ¡Fin del juego!");
+                        return;
+                    }
+                    break; // Break as giganotosaurus is handled
+                }
+            }
+
+            // Collision detection: Player vs Power-up
+            for (let i = powerUps.length - 1; i >= 0; i--) {
+                if (
+                    powerUps[i].x < playerX + playerWidth &&
+                    powerUps[i].x + powerUpWidth > playerX &&
+                    powerUps[i].y < playerY + playerHeight &&
+                    powerUps[i].y + powerUpHeight > playerY
+                ) {
+                    // Player collected power-up!
+                    const collectedPowerUp = powerUps.splice(i, 1)[0];
+                    if (collectedPowerUp.type === 'multi-spear') {
+                        hasMultiSpear = true; // Power-up is now permanent
+                        // No specific sound for power-up for now
+                    }
+                    break; // Break as power-up is removed
+                }
+            }
+        }
+
+        // Draw all game elements
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear canvas
+
+            drawPlayer();
+            drawShield(); // Draw shield after player, so it appears around them
+
+            spears.forEach(drawSpear);
+            dinosaurs.forEach(drawDinosaur);
+            velociraptors.forEach(drawVelociraptor); // Draw velociraptors
+            giganotosauruses.forEach(drawGiganotosaurus); // Draw regular giganotosauruses
+            if (bossActive) {
+                drawBossGiganotosaurus(boss); // Draw the boss if active
+            }
+            stones.forEach(drawStone);
+            powerUps.forEach(drawPowerUp); // Draw power-ups
+        }
+
+        // Game loop
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Start game function
+        function startGame() {
+            score = 0;
+            lives = 3;
+            spears = [];
+            dinosaurs = [];
+            velociraptors = [];
+            giganotosauruses = [];
+            stones = [];
+            powerUps = [];
+            hasMultiSpear = false;
+            isShieldActive = false;
+            dinosaurSpawnRateIncreased = false; // Reset flag
+            dinosaurSpawnInterval = 1500; // Reset to initial value
+            velociraptorSpawnInterval = 1000; // Ensure velociraptor spawn interval is reset
+            // Boss related resets
+            bossActive = false;
+            bossHealth = 0;
+            boss = null;
+            isBossFight = false;
+            scoreDisplay.textContent = `Puntuación: ${score}`;
+            livesDisplay.textContent = `Vidas: ${lives}`;
+            messageBox.style.display = 'none';
+            gameRunning = true;
+            lastShotTime = Date.now(); // Initialize last shot time
+            lastDinosaurSpawnTime = Date.now();
+            lastVelociraptorSpawnTime = Date.now();
+            lastGiganotosaurusSpawnTime = Date.now();
+            gameLoop();
+
+            // Start Tone.js audio context and music on user interaction (first game start or restart)
+            // This is required by browser autoplay policies.
+            if (Tone.context.state !== 'running') {
+                Tone.start().then(() => {
+                    Tone.Transport.start();
+                });
+            } else {
+                Tone.Transport.start();
+            }
+        }
+
+        // End game function
+        function endGame(message) {
+            gameRunning = false;
+            messageText.textContent = message;
+            messageBox.style.display = 'block';
+            playSound('gameOver'); // Play game over sound when game ends
+            Tone.Transport.stop(); // Stop background music on game over
+        }
+
+        // Event Listeners
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'a' || e.key === 'A') {
+                playerMovingLeft = true;
+            } else if (e.key === 'd' || e.key === 'D') {
+                playerMovingRight = true;
+            } else if (e.key === 'f' || e.key === 'F') {
+                isShieldActive = !isShieldActive;
+                playSound('shield'); // Play shield sound on toggle
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            if (e.key === 'a' || e.key === 'A') {
+                playerMovingLeft = false;
+            } else if (e.key === 'd' || e.key === 'D') {
+                playerMovingRight = false;
+            }
+        });
+
+        canvas.addEventListener('click', (e) => {
+            const currentTime = Date.now();
+            if (gameRunning && !isShieldActive && (currentTime - lastShotTime > fireRate)) {
+                if (hasMultiSpear) {
+                    spears.push({ x: playerX + playerWidth / 2 - spearWidth / 2, y: playerY - spearHeight });
+                    spears.push({ x: playerX + playerWidth / 2 - spearWidth / 2 - 20, y: playerY - spearHeight });
+                    spears.push({ x: playerX + playerWidth / 2 - spearWidth / 2 + 20, y: playerY - spearHeight });
+                } else {
+                    spears.push({
+                        x: playerX + playerWidth / 2 - spearWidth / 2,
+                        y: playerY - spearHeight
+                    });
+                }
+                lastShotTime = currentTime; // Update last shot time
+                playSound('shoot'); // Play shoot sound
+            }
+        });
+
+        restartButton.addEventListener('click', startGame);
+
+        // Mobile controls
+        shootButton.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            const currentTime = Date.now();
+            if (gameRunning && !isShieldActive && (currentTime - lastShotTime > fireRate)) {
+                if (hasMultiSpear) {
+                    spears.push({ x: playerX + playerWidth / 2 - spearWidth / 2, y: playerY - spearHeight });
+                    spears.push({ x: playerX + playerWidth / 2 - spearWidth / 2 - 20, y: playerY - spearHeight });
+                    spears.push({ x: playerX + playerWidth / 2 - spearWidth / 2 + 20, y: playerY - spearHeight });
+                } else {
+                    spears.push({
+                        x: playerX + playerWidth / 2 - spearWidth / 2,
+                        y: playerY - spearHeight
+                    });
+                }
+                lastShotTime = currentTime; // Update last shot time
+                playSound('shoot'); // Play shoot sound
+            }
+        });
+        leftButton.addEventListener('touchstart', () => { playerMovingLeft = true; });
+        leftButton.addEventListener('touchend', () => { playerMovingLeft = false; });
+        rightButton.addEventListener('touchstart', () => { playerMovingRight = true; });
+        rightButton.addEventListener('touchend', () => { playerMovingRight = false; });
+        shieldButton.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            isShieldActive = !isShieldActive;
+            playSound('shield'); // Play shield sound on toggle
+        });
+
+        // Initial start of the game
+        window.onload = function() {
+            initMusic(); // Initialize Tone.js components
+            startGame();
+        };
+    </script>
+</body>
+</html>
