@@ -87,7 +87,7 @@
         .controls {
             display: flex;
             gap: 15px;
-            margin-top: 20px;
+            margin-top: -20px; /* Reduced margin-top to move controls higher */
         }
         .control-button {
             background-color: #3498db; /* Blue button */
@@ -129,10 +129,10 @@
         </div>
 
         <div class="controls">
-            <div class="control-button" id="leftButton">A (Izquierda)</div>
-            <div class="control-button" id="rightButton">D (Derecha)</div>
-            <div class="control-button" id="shootButton">Click (Lanzar)</div>
-            <div class="control-button" id="shieldButton">F (Escudo)</div>
+            <div class="control-button" id="leftButton">Izquierda</div>
+            <div class="control-button" id="rightButton">Derecha</div>
+            <div class="control-button" id="shootButton">Lanzar</div>
+            <div class="control-button" id="shieldButton">Escudo</div>
             <!-- Removed music toggle button as music is always on -->
         </div>
     </div>
@@ -164,7 +164,7 @@
         const playerHeight = 75;
         let playerX = canvas.width / 2 - playerWidth / 2;
         let playerY = canvas.height - playerHeight - 10;
-        const playerSpeed = 1; // Reduced player speed for easier control
+        const playerSpeed = 2; // Increased player speed slightly
         let playerMovingLeft = false;
         let playerMovingRight = false;
         let hasMultiSpear = false; // Power-up is now permanent
@@ -182,7 +182,7 @@
         const dinosaurWidth = 60;
         const dinosaurHeight = 70;
         let dinosaurSpeed = 0.1; // Reduced dinosaur speed
-        let dinosaurSpawnInterval = 1500; // milliseconds, can change dynamically
+        let dinosaurSpawnInterval = 1000; // milliseconds, can change dynamically
         let dinosaurs = [];
         let lastDinosaurSpawnTime = 0;
         let dinosaurSpawnRateIncreased = false; // Flag to track if spawn rate has increased
@@ -199,8 +199,7 @@
         const giganotosaurusWidth = 80;
         const giganotosaurusHeight = 90;
         const giganotosaurusSpeed = 0.05; // Reduced Giganotosaurus speed
-        const giganotosaurusSpawnInterval = 5000; // milliseconds, less frequent spawn
-        const giganotosaurusShootInterval = 800; // milliseconds, shoots frequently
+        const giganotosaurusSpawnInterval = 1000; // milliseconds, shoots frequently (1 second)
         let giganotosauruses = [];
         let lastGiganotosaurusSpawnTime = 0;
         const regularGiganotosaurusSpawnScoreThreshold = 500; // Score to start spawning regular Giganotosaurus
@@ -211,7 +210,7 @@
         const bossStoneRadius = 12; // Larger stones
         const bossHealthMax = 5; // 5 hits to die
         const bossSpawnScoreThreshold = 1000; // Score to trigger boss fight
-        const bossShootInterval = 1200; // Slower shooting for boss
+        const bossShootInterval = 1000; // Slower shooting for boss (1 second)
         let bossActive = false; // Is boss currently active?
         let bossHealth = 0; // Current boss health
         let boss = null; // The boss object
@@ -221,14 +220,20 @@
         const stoneRadius = 8; // Default stone radius
         const stoneSpeed = 1; // Reduced stone speed
         let stones = [];
-        const dinosaurShootInterval = 1000; // milliseconds
+        const dinosaurShootInterval = 1000; // milliseconds (1 second)
+        const dinosaurShootChance = 0.45; // 45% probability for dinosaurs to shoot
 
         // Power-up properties
         const powerUpWidth = 25;
         const powerUpHeight = 25;
         const powerUpSpeed = 3;
         let powerUps = [];
-        const powerUpDropChance = 0.2; // 20% chance for a dinosaur to drop a power-up
+        const powerUpDropChance = 0.05; // 5% chance for a dinosaur to drop a power-up (reduced from 0.2)
+
+        // Game limits - specific per enemy type
+        const maxNormalDinosaurs = 5; // Maximum number of normal dinosaurs on screen
+        const maxVelociraptors = 5;    // Maximum number of velociraptors on screen
+        const maxGiganotosauruses = 5; // Maximum number of giganotosauruses on screen
 
         // Sound effects (using AudioContext for simple beeps)
         let audioContext;
@@ -324,37 +329,158 @@
             Tone.Transport.bpm.value = 120; // Set tempo
         }
 
+        // Offscreen canvas for background
+        let backgroundCanvas;
+        let backgroundCtx;
+
+        // Background drawing function - now accepts context and dimensions
+        function drawBackground(ctxToDrawOn, width, height) {
+            // Sky - Gradient
+            let skyGradient = ctxToDrawOn.createLinearGradient(0, 0, 0, height * 0.7);
+            skyGradient.addColorStop(0, '#87CEEB'); // Light Sky Blue
+            skyGradient.addColorStop(1, '#6495ED'); // Cornflower Blue
+            ctxToDrawOn.fillStyle = skyGradient;
+            ctxToDrawOn.fillRect(0, 0, width, height);
+
+            // Ground - Green/Brown mix
+            ctxToDrawOn.fillStyle = '#6B8E23'; // Olive Drab
+            ctxToDrawOn.fillRect(0, height * 0.7, width, height * 0.3);
+
+            // Distant Trees (darker, less detailed)
+            ctxToDrawOn.fillStyle = '#228B22'; // Forest Green
+            for (let i = 0; i < 5; i++) {
+                let treeX = (i * (width / 5)) + Math.random() * 50;
+                let treeHeight = 80 + Math.random() * 40;
+                let treeWidth = 40 + Math.random() * 20;
+                // Trunk
+                ctxToDrawOn.fillRect(treeX, height * 0.7 - treeHeight, treeWidth * 0.3, treeHeight);
+                // Canopy (rounded)
+                ctxToDrawOn.beginPath();
+                ctxToDrawOn.arc(treeX + treeWidth * 0.15, height * 0.7 - treeHeight, treeWidth * 0.6, 0, Math.PI * 2);
+                ctxToDrawOn.fill();
+            }
+
+            // Closer Trees (lighter, more detailed)
+            ctxToDrawOn.fillStyle = '#3CB371'; // Medium Sea Green
+            for (let i = 0; i < 4; i++) {
+                let treeX = (i * (width / 4)) + Math.random() * 70 - 30;
+                let treeHeight = 120 + Math.random() * 60;
+                let treeWidth = 60 + Math.random() * 30;
+                // Trunk
+                ctxToDrawOn.fillStyle = '#8B4513'; // Saddle Brown
+                ctxToDrawOn.fillRect(treeX, height * 0.7 - treeHeight, treeWidth * 0.4, treeHeight);
+                // Canopy (more irregular)
+                ctxToDrawOn.fillStyle = '#3CB371'; // Medium Sea Green
+                ctxToDrawOn.beginPath();
+                ctxToDrawOn.moveTo(treeX + treeWidth * 0.2, height * 0.7 - treeHeight);
+                ctxToDrawOn.lineTo(treeX - treeWidth * 0.1, height * 0.7 - treeHeight * 0.5);
+                ctxToDrawOn.lineTo(treeX + treeWidth * 0.2, height * 0.7 - treeHeight * 0.8);
+                ctxToDrawOn.lineTo(treeX + treeWidth * 0.7, height * 0.7 - treeHeight * 0.6);
+                ctxToDrawOn.lineTo(treeX + treeWidth * 0.4, height * 0.7 - treeHeight);
+                ctxToDrawOn.closePath();
+                ctxToDrawOn.fill();
+            }
+
+            // Bushes/Foliage
+            ctxToDrawOn.fillStyle = '#556B2F'; // Dark Olive Green
+            for (let i = 0; i < 8; i++) {
+                let bushX = (i * (width / 8)) + Math.random() * 40;
+                let bushY = height * 0.7 - 20 + Math.random() * 10;
+                let bushWidth = 30 + Math.random() * 20;
+                let bushHeight = 15 + Math.random() * 10;
+                ctxToDrawOn.beginPath();
+                ctxToDrawOn.arc(bushX, bushY, bushWidth / 2, 0, Math.PI * 2);
+                ctxToDrawOn.fill();
+            }
+        }
+
+        // Initialize offscreen background canvas
+        function initBackgroundCanvas() {
+            backgroundCanvas = document.createElement('canvas');
+            backgroundCanvas.width = canvas.width;
+            backgroundCanvas.height = canvas.height;
+            backgroundCtx = backgroundCanvas.getContext('2d');
+            // Draw the background once onto the offscreen canvas
+            drawBackground(backgroundCtx, backgroundCanvas.width, backgroundCanvas.height);
+        }
+
         // Player drawing (more human-like)
         function drawPlayer() {
-            // Body (torso)
+            ctx.save(); // Save the current canvas state
+            ctx.translate(playerX, playerY); // Translate to player's position
+
+            // Body (more defined torso)
             ctx.fillStyle = '#e67e22'; // Orange-brown for caveman body
-            ctx.fillRect(playerX + 10, playerY + 15, playerWidth - 20, playerHeight - 30); // Adjusted height for torso
-
-            // Legs
-            ctx.fillRect(playerX + 10, playerY + playerHeight - 15, 10, 25); // Left leg, adjusted Y
-            ctx.fillRect(playerX + playerWidth - 20, playerY + playerHeight - 15, 10, 25); // Right leg, adjusted Y
-
-            // Head
-            ctx.fillStyle = '#f1c40f'; // Yellow for head
             ctx.beginPath();
-            ctx.arc(playerX + playerWidth / 2, playerY + 10, 15, 0, Math.PI * 2);
+            ctx.moveTo(playerWidth * 0.2, playerHeight * 0.2);
+            ctx.lineTo(playerWidth * 0.8, playerHeight * 0.2);
+            ctx.lineTo(playerWidth * 0.9, playerHeight * 0.6);
+            ctx.lineTo(playerWidth * 0.1, playerHeight * 0.6);
+            ctx.closePath();
             ctx.fill();
 
-            // Arms (simple rectangles)
-            ctx.fillStyle = '#e67e22'; // Orange-brown for arms
-            ctx.fillRect(playerX, playerY + 20, 10, 30); // Left arm
-            ctx.fillRect(playerX + playerWidth - 10, playerY + 20, 10, 30); // Right arm
+            // Loincloth
+            ctx.fillStyle = '#a0522d'; // Sienna for loincloth
+            ctx.beginPath();
+            ctx.moveTo(playerWidth * 0.1, playerHeight * 0.6);
+            ctx.lineTo(playerWidth * 0.9, playerHeight * 0.6);
+            ctx.lineTo(playerWidth * 0.7, playerHeight * 0.8);
+            ctx.lineTo(playerWidth * 0.3, playerHeight * 0.8);
+            ctx.closePath();
+            ctx.fill();
+
+            // Head (more oval)
+            ctx.fillStyle = '#f1c40f'; // Yellow for head
+            ctx.beginPath();
+            ctx.ellipse(playerWidth / 2, playerHeight * 0.1, playerWidth * 0.2, playerHeight * 0.1, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Hair (bushy)
+            ctx.fillStyle = '#8B4513'; // Saddle Brown for hair
+            ctx.beginPath();
+            ctx.arc(playerWidth / 2, playerHeight * 0.05, playerWidth * 0.25, Math.PI, 0, false);
+            ctx.fill();
+
+            // Eyes
+            ctx.fillStyle = 'white';
+            ctx.beginPath();
+            ctx.arc(playerWidth * 0.4, playerHeight * 0.08, 2, 0, Math.PI * 2); // Left eye
+            ctx.arc(playerWidth * 0.6, playerHeight * 0.08, 2, 0, Math.PI * 2); // Right eye
+            ctx.fill();
+            ctx.fillStyle = 'black';
+            ctx.beginPath();
+            ctx.arc(playerWidth * 0.4, playerHeight * 0.08, 1, 0, Math.PI * 2); // Left pupil
+            ctx.arc(playerWidth * 0.6, playerHeight * 0.08, 1, 0, Math.PI * 2); // Right pupil
+            ctx.fill();
+
+            // Mouth
+            ctx.strokeStyle = 'black';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.arc(playerWidth / 2, playerHeight * 0.12, 5, 0, Math.PI, false); // Simple curved mouth
+            ctx.stroke();
+
+            // Arms (more defined, holding spear)
+            ctx.fillStyle = '#f1c40f'; // Skin color for arms
+            ctx.fillRect(playerWidth * 0.15, playerHeight * 0.3, playerWidth * 0.1, playerHeight * 0.3); // Left arm
+            ctx.fillRect(playerWidth * 0.75, playerHeight * 0.3, playerWidth * 0.1, playerHeight * 0.3); // Right arm
+
+            // Legs (more defined)
+            ctx.fillRect(playerWidth * 0.2, playerHeight * 0.65, playerWidth * 0.15, playerHeight * 0.35); // Left leg
+            ctx.fillRect(playerWidth * 0.65, playerHeight * 0.65, playerWidth * 0.15, playerHeight * 0.35); // Right leg
 
             // Spear in hand (visual only)
             ctx.fillStyle = '#bdc3c7'; // Gray for spear shaft
-            ctx.fillRect(playerX + playerWidth / 2 - 2, playerY - 30, 4, 30);
+            ctx.fillRect(playerWidth / 2 - 2, -15, 4, 45); // Adjusted Y for spear
             ctx.fillStyle = '#c0392b'; // Red for spear tip
             ctx.beginPath();
-            ctx.moveTo(playerX + playerWidth / 2, playerY - 30);
-            ctx.lineTo(playerX + playerWidth / 2 - 7, playerY - 45);
-            ctx.lineTo(playerX + playerWidth / 2 + 7, playerY - 45);
+            ctx.moveTo(playerWidth / 2, -15);
+            ctx.lineTo(playerWidth / 2 - 7, -30);
+            ctx.lineTo(playerWidth / 2 + 7, -30);
             ctx.closePath();
             ctx.fill();
+
+            ctx.restore(); // Restore the canvas state
         }
 
         // Spear drawing
@@ -370,196 +496,343 @@
             ctx.fill();
         }
 
-        // Dinosaur drawing (with small arms, eyes, and mouth)
+        // Dinosaur drawing (more realistic)
         function drawDinosaur(dinosaur) {
+            ctx.save();
+            ctx.translate(dinosaur.x, dinosaur.y);
+
+            // Body (rounded rectangle)
             ctx.fillStyle = '#2ecc71'; // Green for dinosaur body
-            ctx.fillRect(dinosaur.x, dinosaur.y, dinosaurWidth, dinosaurHeight);
+            ctx.beginPath();
+            ctx.roundRect(0, dinosaurHeight * 0.2, dinosaurWidth, dinosaurHeight * 0.8, 15); // Rounded body
+            ctx.fill();
+
+            // Neck
+            ctx.beginPath();
+            ctx.moveTo(dinosaurWidth * 0.7, dinosaurHeight * 0.2);
+            ctx.lineTo(dinosaurWidth * 0.8, dinosaurHeight * 0.05);
+            ctx.lineTo(dinosaurWidth * 0.9, dinosaurHeight * 0.05);
+            ctx.lineTo(dinosaurWidth * 0.9, dinosaurHeight * 0.2);
+            ctx.closePath();
+            ctx.fill();
 
             // Head
             ctx.fillStyle = '#27ae60'; // Darker green
             ctx.beginPath();
-            ctx.arc(dinosaur.x + dinosaurWidth / 2, dinosaur.y - 10, 15, 0, Math.PI * 2);
+            ctx.arc(dinosaurWidth * 0.85, dinosaurHeight * 0.05, 15, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Tail
+            ctx.beginPath();
+            ctx.moveTo(0, dinosaurHeight * 0.8);
+            ctx.lineTo(-20, dinosaurHeight * 0.7);
+            ctx.lineTo(-10, dinosaurHeight * 0.9);
+            ctx.closePath();
             ctx.fill();
 
             // Spikes (simple triangles)
             ctx.fillStyle = '#c0392b'; // Red spikes
             ctx.beginPath();
-            ctx.moveTo(dinosaur.x + 10, dinosaur.y + dinosaurHeight);
-            ctx.lineTo(dinosaur.x + 20, dinosaur.y + dinosaurHeight + 15);
-            ctx.lineTo(dinosaur.x + 30, dinosaur.y + dinosaurHeight);
+            ctx.moveTo(dinosaurWidth * 0.2, dinosaurHeight * 0.2);
+            ctx.lineTo(dinosaurWidth * 0.25, dinosaurHeight * 0.1);
+            ctx.lineTo(dinosaurWidth * 0.3, dinosaurHeight * 0.2);
             ctx.fill();
 
             ctx.beginPath();
-            ctx.moveTo(dinosaur.x + 30, dinosaur.y + dinosaurHeight);
-            ctx.lineTo(dinosaur.x + 40, dinosaur.y + dinosaurHeight + 15);
-            ctx.lineTo(dinosaur.x + 50, dinosaur.y + dinosaurHeight);
+            ctx.moveTo(dinosaurWidth * 0.4, dinosaurHeight * 0.2);
+            ctx.lineTo(dinosaurWidth * 0.45, dinosaurHeight * 0.1);
+            ctx.lineTo(dinosaurWidth * 0.5, dinosaurHeight * 0.2);
             ctx.fill();
 
-            // Small arms
-            ctx.fillStyle = '#27ae60'; // Darker green for arms
-            ctx.fillRect(dinosaur.x + 5, dinosaur.y + 30, 15, 10); // Left arm
-            ctx.fillRect(dinosaur.x + dinosaurWidth - 20, dinosaur.y + 30, 15, 10); // Right arm
+            // Legs
+            ctx.fillStyle = '#27ae60'; // Darker green for legs
+            ctx.fillRect(dinosaurWidth * 0.2, dinosaurHeight * 0.8, 15, 25); // Front leg
+            ctx.fillRect(dinosaurWidth * 0.6, dinosaurHeight * 0.8, 15, 25); // Back leg
 
             // Eyes
             ctx.fillStyle = 'white';
             ctx.beginPath();
-            ctx.arc(dinosaur.x + dinosaurWidth / 2 - 7, dinosaur.y - 12, 3, 0, Math.PI * 2); // Left eye
-            ctx.arc(dinosaur.x + dinosaurWidth / 2 + 7, dinosaur.y - 12, 3, 0, Math.PI * 2); // Right eye
+            ctx.arc(dinosaurWidth * 0.8, dinosaurHeight * 0.03, 3, 0, Math.PI * 2); // Left eye
+            ctx.arc(dinosaurWidth * 0.9, dinosaurHeight * 0.03, 3, 0, Math.PI * 2); // Right eye
             ctx.fill();
             ctx.fillStyle = 'black';
             ctx.beginPath();
-            ctx.arc(dinosaur.x + dinosaurWidth / 2 - 7, dinosaur.y - 12, 1, 0, Math.PI * 2); // Left pupil
-            ctx.arc(dinosaur.x + dinosaurWidth / 2 + 7, dinosaur.y - 12, 1, 0, Math.PI * 2); // Right pupil
+            ctx.arc(dinosaurWidth * 0.8, dinosaurHeight * 0.03, 1, 0, Math.PI * 2); // Left pupil
+            ctx.arc(dinosaurWidth * 0.9, dinosaurHeight * 0.03, 1, 0, Math.PI * 2); // Right pupil
             ctx.fill();
 
             // Mouth
             ctx.strokeStyle = 'black';
             ctx.lineWidth = 1;
             ctx.beginPath();
-            ctx.arc(dinosaur.x + dinosaurWidth / 2, dinosaur.y - 5, 8, 0, Math.PI, false); // Simple curved mouth
+            ctx.arc(dinosaurWidth * 0.85, dinosaurHeight * 0.1, 8, 0, Math.PI, false); // Simple curved mouth
             ctx.stroke();
+
+            ctx.restore();
         }
 
-        // Velociraptor drawing (distinct from regular dinosaurs)
+        // Velociraptor drawing (more realistic)
         function drawVelociraptor(velociraptor) {
-            ctx.fillStyle = '#a0522d'; // Brown for velociraptor body
-            ctx.fillRect(velociraptor.x, velociraptor.y, velociraptorWidth, velociraptorHeight);
+            ctx.save();
+            ctx.translate(velociraptor.x, velociraptor.y);
 
-            // Head (more pointed)
-            ctx.fillStyle = '#8b4513'; // Darker brown
+            // Body (leaner, more curved)
+            ctx.fillStyle = '#a0522d'; // Brown for velociraptor body
             ctx.beginPath();
-            ctx.moveTo(velociraptor.x + velociraptorWidth / 2, velociraptor.y - 15);
-            ctx.lineTo(velociraptor.x + velociraptorWidth / 2 - 10, velociraptor.y + 5);
-            ctx.lineTo(velociraptor.x + velociraptorWidth / 2 + 10, velociraptor.y + 5);
+            ctx.moveTo(velociraptorWidth * 0.1, velociraptorHeight * 0.3);
+            ctx.lineTo(velociraptorWidth * 0.9, velociraptorHeight * 0.2);
+            ctx.lineTo(velociraptorWidth * 0.8, velociraptorHeight * 0.9);
+            ctx.lineTo(velociraptorWidth * 0.2, velociraptorHeight * 0.9);
             ctx.closePath();
             ctx.fill();
 
-            // Small arms (similar to dinosaur, but maybe smaller)
-            ctx.fillStyle = '#8b4513'; // Darker brown for arms
-            ctx.fillRect(velociraptor.x + 5, velociraptor.y + 25, 10, 8); // Left arm
-            ctx.fillRect(velociraptor.x + velociraptorWidth - 15, velociraptor.y + 25, 10, 8); // Right arm
+            // Neck (thin)
+            ctx.beginPath();
+            ctx.moveTo(velociraptorWidth * 0.7, velociraptorHeight * 0.2);
+            ctx.lineTo(velociraptorWidth * 0.75, velociraptorHeight * 0.05);
+            ctx.lineTo(velociraptorWidth * 0.8, velociraptorHeight * 0.05);
+            ctx.lineTo(velociraptorWidth * 0.85, velociraptorHeight * 0.2);
+            ctx.closePath();
+            ctx.fill();
+
+            // Head (pointed)
+            ctx.fillStyle = '#8b4513'; // Darker brown
+            ctx.beginPath();
+            ctx.moveTo(velociraptorWidth * 0.75, velociraptorHeight * 0.05);
+            ctx.lineTo(velociraptorWidth * 0.95, velociraptorHeight * 0.08);
+            ctx.lineTo(velociraptorWidth * 0.75, velociraptorHeight * 0.15);
+            ctx.closePath();
+            ctx.fill();
+
+            // Tail (long and thin)
+            ctx.beginPath();
+            ctx.moveTo(velociraptorWidth * 0.1, velociraptorHeight * 0.8);
+            ctx.lineTo(-25, velociraptorHeight * 0.7);
+            ctx.lineTo(-15, velociraptorHeight * 0.9);
+            ctx.closePath();
+            ctx.fill();
+
+            // Legs (strong, bent)
+            ctx.fillStyle = '#8b4513'; // Darker brown for legs
+            ctx.beginPath();
+            ctx.moveTo(velociraptorWidth * 0.3, velociraptorHeight * 0.9);
+            ctx.lineTo(velociraptorWidth * 0.35, velociraptorHeight * 0.7);
+            ctx.lineTo(velociraptorWidth * 0.4, velociraptorHeight);
+            ctx.lineTo(velociraptorWidth * 0.25, velociraptorHeight);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.moveTo(velociraptorWidth * 0.6, velociraptorHeight * 0.9);
+            ctx.lineTo(velociraptorWidth * 0.65, velociraptorHeight * 0.7);
+            ctx.lineTo(velociraptorWidth * 0.7, velociraptorHeight);
+            ctx.lineTo(velociraptorWidth * 0.55, velociraptorHeight);
+            ctx.closePath();
+            ctx.fill();
 
             // Eyes
             ctx.fillStyle = 'white';
             ctx.beginPath();
-            ctx.arc(velociraptor.x + velociraptorWidth / 2 - 5, velociraptor.y - 8, 2, 0, Math.PI * 2); // Left eye
-            ctx.arc(velociraptor.x + velociraptorWidth / 2 + 5, velociraptor.y - 8, 2, 0, Math.PI * 2); // Right eye
+            ctx.arc(velociraptorWidth * 0.8, velociraptorHeight * 0.06, 2, 0, Math.PI * 2); // Eye
             ctx.fill();
             ctx.fillStyle = 'black';
             ctx.beginPath();
-            ctx.arc(velociraptor.x + velociraptorWidth / 2 - 5, velociraptor.y - 8, 1, 0, Math.PI * 2); // Left pupil
-            ctx.arc(velociraptor.x + velociraptorWidth / 2 + 5, velociraptor.y - 8, 1, 0, Math.PI * 2); // Right pupil
+            ctx.arc(velociraptorWidth * 0.8, velociraptorHeight * 0.06, 1, 0, Math.PI * 2); // Pupil
             ctx.fill();
 
-            // Mouth (simple line)
+            // Mouth (thin line)
             ctx.strokeStyle = 'black';
             ctx.lineWidth = 1;
             ctx.beginPath();
-            ctx.moveTo(velociraptor.x + velociraptorWidth / 2 - 8, velociraptor.y);
-            ctx.lineTo(velociraptor.x + velociraptorWidth / 2 + 8, velociraptor.y);
+            ctx.moveTo(velociraptorWidth * 0.78, velociraptorHeight * 0.1);
+            ctx.lineTo(velociraptorWidth * 0.9, velociraptorHeight * 0.1);
             ctx.stroke();
+
+            ctx.restore();
         }
 
-        // Giganotosaurus drawing (larger, distinct color, small arms, eyes, mouth)
+        // Giganotosaurus drawing (larger, more menacing)
         function drawGiganotosaurus(giganotosaurus) {
-            ctx.fillStyle = '#5a5a5a'; // Dark grey for giganotosaurus body
-            ctx.fillRect(giganotosaurus.x, giganotosaurus.y, giganotosaurusWidth, giganotosaurusHeight);
+            ctx.save();
+            ctx.translate(giganotosaurus.x, giganotosaurus.y);
 
-            // Head (larger, more pronounced)
+            // Body (massive)
+            ctx.fillStyle = '#5a5a5a'; // Dark grey for giganotosaurus body
+            ctx.beginPath();
+            ctx.roundRect(0, giganotosaurusHeight * 0.3, giganotosaurusWidth, giganotosaurusHeight * 0.7, 20);
+            ctx.fill();
+
+            // Neck (thick)
+            ctx.beginPath();
+            ctx.moveTo(giganotosaurusWidth * 0.7, giganotosaurusHeight * 0.3);
+            ctx.lineTo(giganotosaurusWidth * 0.8, giganotosaurusHeight * 0.1);
+            ctx.lineTo(giganotosaurusWidth * 0.9, giganotosaurusHeight * 0.1);
+            ctx.lineTo(giganotosaurusWidth, giganotosaurusHeight * 0.3);
+            ctx.closePath();
+            ctx.fill();
+
+            // Head (large, blocky)
             ctx.fillStyle = '#4a4a4a'; // Even darker grey
             ctx.beginPath();
-            ctx.arc(giganotosaurus.x + giganotosaurusWidth / 2, giganotosaurus.y - 15, 20, 0, Math.PI * 2);
+            ctx.moveTo(giganotosaurusWidth * 0.8, giganotosaurusHeight * 0.1);
+            ctx.lineTo(giganotosaurusWidth * 0.95, giganotosaurusHeight * 0.05);
+            ctx.lineTo(giganotosaurusWidth * 1.05, giganotosaurusHeight * 0.15);
+            ctx.lineTo(giganotosaurusWidth * 0.9, giganotosaurusHeight * 0.25);
+            ctx.closePath();
             ctx.fill();
 
-            // Spikes (larger triangles)
+            // Tail (thick, powerful)
+            ctx.beginPath();
+            ctx.moveTo(0, giganotosaurusHeight * 0.8);
+            ctx.lineTo(-30, giganotosaurusHeight * 0.7);
+            ctx.lineTo(-10, giganotosaurusHeight);
+            ctx.closePath();
+            ctx.fill();
+
+            // Spikes (large, jagged)
             ctx.fillStyle = '#c0392b'; // Red spikes
             ctx.beginPath();
-            ctx.moveTo(giganotosaurus.x + 15, giganotosaurus.y + giganotosaurusHeight);
-            ctx.lineTo(giganotosaurus.x + 30, giganotosaurus.y + giganotosaurusHeight + 20);
-            ctx.lineTo(giganotosaurus.x + 45, giganotosaurus.y + giganotosaurusHeight);
+            ctx.moveTo(giganotosaurusWidth * 0.3, giganotosaurusHeight * 0.3);
+            ctx.lineTo(giganotosaurusWidth * 0.35, giganotosaurusHeight * 0.2);
+            ctx.lineTo(giganotosaurusWidth * 0.4, giganotosaurusHeight * 0.3);
             ctx.fill();
 
             ctx.beginPath();
-            ctx.moveTo(giganotosaurus.x + 45, giganotosaurus.y + giganotosaurusHeight);
-            ctx.lineTo(giganotosaurus.x + 60, giganotosaurus.y + giganotosaurusHeight + 20);
-            ctx.lineTo(giganotosaurus.x + 75, giganotosaurus.y + giganotosaurusHeight);
+            ctx.moveTo(giganotosaurusWidth * 0.5, giganotosaurusHeight * 0.3);
+            ctx.lineTo(giganotosaurusWidth * 0.55, giganotosaurusHeight * 0.2);
+            ctx.lineTo(giganotosaurusWidth * 0.6, giganotosaurusHeight * 0.3);
             ctx.fill();
 
-            // Small arms (proportionally small for its size)
-            ctx.fillStyle = '#4a4a4a'; // Darker grey for arms
-            ctx.fillRect(giganotosaurus.x + 10, giganotosaurus.y + 40, 20, 12); // Left arm
-            ctx.fillRect(giganotosaurus.x + giganotosaurusWidth - 30, giganotosaurus.y + 40, 20, 12); // Right arm
+            // Legs (very thick)
+            ctx.fillStyle = '#4a4a4a'; // Darker grey for legs
+            ctx.fillRect(giganotosaurusWidth * 0.2, giganotosaurusHeight * 0.8, 20, 30); // Front leg
+            ctx.fillRect(giganotosaurusWidth * 0.6, giganotosaurusHeight * 0.8, 20, 30); // Back leg
 
-            // Eyes
-            ctx.fillStyle = 'red'; // Red eyes for a more menacing look
+            // Eyes (red, menacing)
+            ctx.fillStyle = 'red';
             ctx.beginPath();
-            ctx.arc(giganotosaurus.x + giganotosaurusWidth / 2 - 10, giganotosaurus.y - 18, 4, 0, Math.PI * 2); // Left eye
-            ctx.arc(giganotosaurus.x + giganotosaurusWidth / 2 + 10, giganotosaurus.y - 18, 4, 0, Math.PI * 2); // Right eye
+            ctx.arc(giganotosaurusWidth * 0.88, giganotosaurusHeight * 0.08, 4, 0, Math.PI * 2); // Eye
             ctx.fill();
 
             // Mouth (jagged for teeth)
             ctx.strokeStyle = 'black';
             ctx.lineWidth = 2;
             ctx.beginPath();
-            ctx.moveTo(giganotosaurus.x + giganotosaurusWidth / 2 - 15, giganotosaurus.y - 8);
-            ctx.lineTo(giganotosaurus.x + giganotosaurusWidth / 2 - 5, giganotosaurus.y - 12);
-            ctx.lineTo(giganotosaurus.x + giganotosaurusWidth / 2 + 5, giganotosaurus.y - 12);
-            ctx.lineTo(giganotosaurus.x + giganotosaurusWidth / 2 + 15, giganotosaurus.y - 8);
+            ctx.moveTo(giganotosaurusWidth * 0.85, giganotosaurusHeight * 0.15);
+            ctx.lineTo(giganotosaurusWidth * 0.95, giganotosaurusHeight * 0.15);
+            ctx.lineTo(giganotosaurusWidth * 0.9, giganotosaurusHeight * 0.2);
+            ctx.closePath();
             ctx.stroke();
+
+            ctx.restore();
         }
 
-        // Boss Giganotosaurus drawing (distinct from regular Giganotosaurus)
+        // Boss Giganotosaurus drawing (even larger, more detailed)
         function drawBossGiganotosaurus(boss) {
-            ctx.fillStyle = '#8b0000'; // Dark red for boss body
-            ctx.fillRect(boss.x, boss.y, boss.width, boss.height);
+            ctx.save();
+            ctx.translate(boss.x, boss.y);
 
-            // Head (larger, more pronounced)
+            // Body (massive, with some texture)
+            ctx.fillStyle = '#8b0000'; // Dark red for boss body
+            ctx.beginPath();
+            ctx.roundRect(0, boss.height * 0.3, boss.width, boss.height * 0.7, 25);
+            ctx.fill();
+
+            // Neck (very thick)
             ctx.fillStyle = '#660000'; // Even darker red
             ctx.beginPath();
-            ctx.arc(boss.x + boss.width / 2, boss.y - 20, 25, 0, Math.PI * 2);
+            ctx.moveTo(boss.width * 0.7, boss.height * 0.3);
+            ctx.lineTo(boss.width * 0.8, boss.height * 0.1);
+            ctx.lineTo(boss.width * 0.9, boss.height * 0.1);
+            ctx.lineTo(boss.width, boss.height * 0.3);
+            ctx.closePath();
             ctx.fill();
 
-            // Spikes (larger triangles)
+            // Head (huge, detailed)
+            ctx.fillStyle = '#660000'; // Even darker red
+            ctx.beginPath();
+            ctx.moveTo(boss.width * 0.8, boss.height * 0.1);
+            ctx.lineTo(boss.width * 0.98, boss.height * 0.05);
+            ctx.lineTo(boss.width * 1.08, boss.height * 0.15);
+            ctx.lineTo(boss.width * 0.95, boss.height * 0.28);
+            ctx.closePath();
+            ctx.fill();
+
+            // Tail (massive, with segments)
+            ctx.fillStyle = '#8b0000';
+            ctx.beginPath();
+            ctx.moveTo(0, boss.height * 0.8);
+            ctx.lineTo(-40, boss.height * 0.7);
+            ctx.lineTo(-20, boss.height);
+            ctx.closePath();
+            ctx.fill();
+            // Tail segments (simple lines)
+            ctx.strokeStyle = '#4a0000';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(-10, boss.height * 0.85);
+            ctx.lineTo(boss.width * 0.1, boss.height * 0.7);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(-5, boss.height * 0.9);
+            ctx.lineTo(boss.width * 0.05, boss.height * 0.8);
+            ctx.stroke();
+
+
+            // Spikes (very large, prominent)
             ctx.fillStyle = '#ff4500'; // Orange-red spikes
             ctx.beginPath();
-            ctx.moveTo(boss.x + 20, boss.y + boss.height);
-            ctx.lineTo(boss.x + 40, boss.y + boss.height + 25);
-            ctx.lineTo(boss.x + 60, boss.y + boss.height);
+            ctx.moveTo(boss.width * 0.3, boss.height * 0.3);
+            ctx.lineTo(boss.width * 0.35, boss.height * 0.15);
+            ctx.lineTo(boss.width * 0.4, boss.height * 0.3);
             ctx.fill();
 
             ctx.beginPath();
-            ctx.moveTo(boss.x + 60, boss.y + boss.height);
-            ctx.lineTo(boss.x + 80, boss.y + boss.height + 25);
-            ctx.lineTo(boss.x + 100, boss.y + boss.height);
+            ctx.moveTo(boss.width * 0.5, boss.height * 0.3);
+            ctx.lineTo(boss.width * 0.55, boss.height * 0.15);
+            ctx.lineTo(boss.width * 0.6, boss.height * 0.3);
             ctx.fill();
 
-            // Small arms (proportionally small for its size)
-            ctx.fillStyle = '#660000'; // Darker red for arms
-            ctx.fillRect(boss.x + 15, boss.y + 50, 25, 15); // Left arm
-            ctx.fillRect(boss.x + boss.width - 40, boss.y + 50, 25, 15); // Right arm
+            // Legs (colossal)
+            ctx.fillStyle = '#660000'; // Darker red for legs
+            ctx.fillRect(boss.width * 0.2, boss.height * 0.8, 30, 40); // Front leg
+            ctx.fillRect(boss.width * 0.6, boss.height * 0.8, 30, 40); // Back leg
 
-            // Eyes
-            ctx.fillStyle = 'yellow'; // Yellow eyes for a more menacing look
+            // Eyes (glowing yellow)
+            ctx.fillStyle = 'yellow';
             ctx.beginPath();
-            ctx.arc(boss.x + boss.width / 2 - 15, boss.y - 25, 5, 0, Math.PI * 2); // Left eye
-            ctx.arc(boss.x + boss.width / 2 + 15, boss.y - 25, 5, 0, Math.PI * 2); // Right eye
+            ctx.arc(boss.width * 0.92, boss.height * 0.08, 6, 0, Math.PI * 2); // Eye
             ctx.fill();
 
-            // Mouth (jagged for teeth)
+            // Mouth (jagged with teeth)
             ctx.strokeStyle = 'black';
             ctx.lineWidth = 3;
             ctx.beginPath();
-            ctx.moveTo(boss.x + boss.width / 2 - 20, boss.y - 10);
-            ctx.lineTo(boss.x + boss.width / 2 - 10, boss.y - 18);
-            ctx.lineTo(boss.x + boss.width / 2 + 10, boss.y - 18);
-            ctx.lineTo(boss.x + boss.width / 2 + 20, boss.y - 10);
+            ctx.moveTo(boss.width * 0.88, boss.height * 0.18);
+            ctx.lineTo(boss.width * 1.02, boss.height * 0.18);
+            ctx.lineTo(boss.width * 0.95, boss.height * 0.25);
+            ctx.closePath();
             ctx.stroke();
+            // Teeth (simple triangles)
+            ctx.fillStyle = 'white';
+            ctx.beginPath();
+            ctx.moveTo(boss.width * 0.89, boss.height * 0.18);
+            ctx.lineTo(boss.width * 0.9, boss.height * 0.22);
+            ctx.lineTo(boss.width * 0.91, boss.height * 0.18);
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.moveTo(boss.width * 0.93, boss.height * 0.18);
+            ctx.lineTo(boss.width * 0.94, boss.height * 0.22);
+            ctx.lineTo(boss.width * 0.95, boss.height * 0.18);
+            ctx.fill();
+
 
             // Health bar for the boss
             const healthBarWidth = boss.width * 0.8;
             const healthBarHeight = 10;
-            const healthBarX = boss.x + (boss.width - healthBarWidth) / 2;
-            const healthBarY = boss.y - 30;
+            const healthBarX = (boss.width - healthBarWidth) / 2;
+            const healthBarY = -30;
 
             ctx.fillStyle = 'red';
             ctx.fillRect(healthBarX, healthBarY, healthBarWidth, healthBarHeight);
@@ -571,6 +844,8 @@
             ctx.strokeStyle = 'black';
             ctx.lineWidth = 1;
             ctx.strokeRect(healthBarX, healthBarY, healthBarWidth, healthBarHeight);
+
+            ctx.restore();
         }
 
         // Stone drawing
@@ -622,18 +897,38 @@
             }
         }
 
+        // Helper function for enemy-to-enemy collision (stacking)
+        function checkOverlapAndStack(movingEnemy, movingWidth, movingHeight, staticEnemy, staticWidth, staticHeight, proposedMovingY) {
+            // Horizontal overlap
+            const horizontalOverlap = (
+                movingEnemy.x < staticEnemy.x + staticWidth &&
+                movingEnemy.x + movingWidth > staticEnemy.x
+            );
+
+            // Vertical collision: movingEnemy's proposed bottom would pass staticEnemy's top,
+            // AND movingEnemy's current bottom is above or at staticEnemy's top.
+            const verticalCollision = (
+                proposedMovingY + movingHeight > staticEnemy.y &&
+                movingEnemy.y + movingHeight <= staticEnemy.y
+            );
+
+            return horizontalOverlap && verticalCollision;
+        }
+
         // Resize canvas function
         function resizeCanvas() {
-            canvas.width = Math.min(window.innerWidth * 0.95, 1200); // Increased width
-            canvas.height = Math.min(window.innerHeight * 0.9, 900); // Increased height
+            canvas.width = Math.min(window.innerWidth * 0.7, 800); // Reduced width
+            canvas.height = Math.min(window.innerHeight * 0.6, 600); // Reduced height
             playerX = canvas.width / 2 - playerWidth / 2;
             playerY = canvas.height - playerHeight - 10;
+            // Always re-initialize and redraw the background canvas on resize
+            initBackgroundCanvas();
             draw(); // Redraw game elements
         }
 
         // Initial resize and event listener for window resize
         window.addEventListener('resize', resizeCanvas);
-        resizeCanvas(); // Call once on load
+        // The initial call to resizeCanvas() is now handled in window.onload
 
         // Update game logic
         function update() {
@@ -682,63 +977,96 @@
             if (bossActive) {
                 // Boss shooting (3 larger stones at once)
                 if (currentTime - boss.lastShotTime > bossShootInterval) {
-                    stones.push({ x: boss.x + boss.width / 2, y: boss.y + boss.height, radius: bossStoneRadius }); // Middle
-                    stones.push({ x: boss.x + boss.width / 2 - 25, y: boss.y + boss.height, radius: bossStoneRadius }); // Left
-                    stones.push({ x: boss.x + boss.width / 2 + 25, y: boss.y + boss.height, radius: bossStoneRadius }); // Right
+                    if (Math.random() < dinosaurShootChance) { // Apply probability to boss shot
+                        stones.push({ x: boss.x + boss.width / 2, y: boss.y + boss.height, radius: bossStoneRadius }); // Middle
+                        stones.push({ x: boss.x + boss.width / 2 - 25, y: boss.y + boss.height, radius: bossStoneRadius }); // Left
+                        stones.push({ x: boss.x + boss.width / 2 + 25, y: boss.y + boss.height, radius: bossStoneRadius }); // Right
+                    }
                     boss.lastShotTime = currentTime;
                 }
                 // Boss does not move, so no position update
             } else { // Only spawn other enemies if boss is not active
-                // Increase dinosaur spawn rate at 500 points
-                if (score >= regularGiganotosaurusSpawnScoreThreshold && !dinosaurSpawnRateIncreased) {
-                    dinosaurSpawnInterval = 750; // Faster spawn for regular dinosaurs
-                    dinosaurSpawnRateIncreased = true;
-                }
 
-                // Spawn dinosaurs
-                if (currentTime - lastDinosaurSpawnTime > dinosaurSpawnInterval) {
+                // Spawn dinosaurs (normal)
+                if (dinosaurs.length < maxNormalDinosaurs && currentTime - lastDinosaurSpawnTime > dinosaurSpawnInterval) {
                     const x = Math.random() * (canvas.width - dinosaurWidth);
-                    dinosaurs.push({ x: x, y: 0, lastShotTime: currentTime });
+                    dinosaurs.push({ x: x, y: 0, lastShotTime: currentTime, type: 'dinosaur' });
                     lastDinosaurSpawnTime = currentTime;
                 }
 
                 // Spawn Velociraptors if score threshold is met
-                if (score >= velociraptorSpawnScoreThreshold && currentTime - lastVelociraptorSpawnTime > velociraptorSpawnInterval) {
+                if (velociraptors.length < maxVelociraptors && score >= velociraptorSpawnScoreThreshold && currentTime - lastVelociraptorSpawnTime > velociraptorSpawnInterval) {
                     const x = Math.random() * (canvas.width - velociraptorWidth);
-                    velociraptors.push({ x: x, y: 0 }); // Velociraptors don't shoot, so no lastShotTime needed
+                    velociraptors.push({ x: x, y: 0, type: 'velociraptor' }); // Removed lastShotTime for velociraptors
                     lastVelociraptorSpawnTime = currentTime;
                 }
 
                 // Spawn regular Giganotosaurus if score threshold is met
-                if (score >= regularGiganotosaurusSpawnScoreThreshold && currentTime - lastGiganotosaurusSpawnTime > giganotosaurusSpawnInterval) {
+                if (giganotosauruses.length < maxGiganotosauruses && score >= regularGiganotosaurusSpawnScoreThreshold && currentTime - lastGiganotosaurusSpawnTime > giganotosaurusSpawnInterval) {
                     const x = Math.random() * (canvas.width - giganotosaurusWidth);
-                    giganotosauruses.push({ x: x, y: 0, lastShotTime: currentTime }); // Regular Giganotosaurus shoots
+                    giganotosauruses.push({ x: x, y: 0, lastShotTime: currentTime, type: 'giganotosaurus' }); // Regular Giganotosaurus shoots
                     lastGiganotosaurusSpawnTime = currentTime;
                 }
             }
 
+            // Combine all enemies for collision checking among themselves
+            let allEnemiesForCollision = [
+                ...dinosaurs.map(d => ({ ...d, width: dinosaurWidth, height: dinosaurHeight })),
+                ...velociraptors.map(v => ({ ...v, width: velociraptorWidth, height: velociraptorHeight })),
+                ...giganotosauruses.map(g => ({ ...g, width: giganotosaurusWidth, height: giganotosaurusHeight }))
+            ];
+
 
             // Update dinosaurs and make them shoot
             for (let i = dinosaurs.length - 1; i >= 0; i--) {
-                dinosaurs[i].y += dinosaurSpeed;
+                let currentDino = dinosaurs[i];
+                let proposedY = currentDino.y + dinosaurSpeed;
+                let finalY = proposedY;
+
+                // Check collision with other enemies (including other types)
+                for (let j = 0; j < allEnemiesForCollision.length; j++) {
+                    let otherEnemy = allEnemiesForCollision[j];
+                    if (currentDino === otherEnemy) continue; // Don't check against itself
+
+                    if (checkOverlapAndStack(currentDino, dinosaurWidth, dinosaurHeight, otherEnemy, otherEnemy.width, otherEnemy.height, proposedY)) {
+                        finalY = Math.min(finalY, otherEnemy.y - dinosaurHeight); // Stop just above otherEnemy
+                    }
+                }
+                currentDino.y = finalY;
 
                 // Dinosaur shooting
-                if (currentTime - dinosaurs[i].lastShotTime > dinosaurShootInterval) {
-                    stones.push({ x: dinosaurs[i].x + dinosaurWidth / 2, y: dinosaurs[i].y + dinosaurHeight, radius: stoneRadius });
-                    dinosaurs[i].lastShotTime = currentTime;
+                if (currentTime - currentDino.lastShotTime > dinosaurShootInterval) {
+                    if (Math.random() < dinosaurShootChance) { // Apply probability
+                        stones.push({ x: currentDino.x + dinosaurWidth / 2, y: currentDino.y + dinosaurHeight, radius: stoneRadius });
+                    }
+                    currentDino.lastShotTime = currentTime;
                 }
 
-                if (dinosaurs[i].y + dinosaurHeight > canvas.height) {
+                if (currentDino.y + dinosaurHeight > canvas.height) {
                     // Dinosaur reached bottom, game over
                     endGame("¡Un dinosaurio ha llegado al final! ¡Fin del juego!");
                     return;
                 }
             }
 
-            // Update velociraptors
+            // Update velociraptors (no shooting logic here)
             for (let i = velociraptors.length - 1; i >= 0; i--) {
-                velociraptors[i].y += velociraptorSpeed;
-                if (velociraptors[i].y + velociraptorHeight > canvas.height) {
+                let currentVelociraptor = velociraptors[i];
+                let proposedY = currentVelociraptor.y + velociraptorSpeed;
+                let finalY = proposedY;
+
+                // Check collision with other enemies
+                for (let j = 0; j < allEnemiesForCollision.length; j++) {
+                    let otherEnemy = allEnemiesForCollision[j];
+                    if (currentVelociraptor === otherEnemy) continue;
+
+                    if (checkOverlapAndStack(currentVelociraptor, velociraptorWidth, velociraptorHeight, otherEnemy, otherEnemy.width, otherEnemy.height, proposedY)) {
+                        finalY = Math.min(finalY, otherEnemy.y - velociraptorHeight);
+                    }
+                }
+                currentVelociraptor.y = finalY;
+
+                if (currentVelociraptor.y + velociraptorHeight > canvas.height) {
                     // Velociraptor reached bottom, game over
                     endGame("¡Un velociraptor ha llegado al final! ¡Fin del juego!");
                     return;
@@ -747,17 +1075,32 @@
 
             // Update regular giganotosauruses and make them shoot
             for (let i = giganotosauruses.length - 1; i >= 0; i--) {
-                giganotosauruses[i].y += giganotosaurusSpeed;
+                let currentGiganotosaurus = giganotosauruses[i];
+                let proposedY = currentGiganotosaurus.y + giganotosaurusSpeed;
+                let finalY = proposedY;
+
+                // Check collision with other enemies
+                for (let j = 0; j < allEnemiesForCollision.length; j++) {
+                    let otherEnemy = allEnemiesForCollision[j];
+                    if (currentGiganotosaurus === otherEnemy) continue;
+
+                    if (checkOverlapAndStack(currentGiganotosaurus, giganotosaurusWidth, giganotosaurusHeight, otherEnemy, otherEnemy.width, otherEnemy.height, proposedY)) {
+                        finalY = Math.min(finalY, otherEnemy.y - giganotosaurusHeight);
+                    }
+                }
+                currentGiganotosaurus.y = finalY;
 
                 // Regular Giganotosaurus shooting (3 stones at once)
-                if (currentTime - giganotosauruses[i].lastShotTime > giganotosaurusShootInterval) {
-                    stones.push({ x: giganotosauruses[i].x + giganotosaurusWidth / 2, y: giganotosauruses[i].y + giganotosaurusHeight, radius: stoneRadius }); // Middle
-                    stones.push({ x: giganotosauruses[i].x + giganotosaurusWidth / 2 - 15, y: giganotosauruses[i].y + giganotosaurusHeight, radius: stoneRadius }); // Left
-                    stones.push({ x: giganotosauruses[i].x + giganotosaurusWidth / 2 + 15, y: giganotosauruses[i].y + giganotosaurusHeight, radius: stoneRadius }); // Right
-                    giganotosauruses[i].lastShotTime = currentTime;
+                if (currentTime - currentGiganotosaurus.lastShotTime > dinosaurShootInterval) {
+                    if (Math.random() < dinosaurShootChance) { // Apply probability
+                        stones.push({ x: currentGiganotosaurus.x + giganotosaurusWidth / 2, y: currentGiganotosaurus.y + giganotosaurusHeight, radius: stoneRadius }); // Middle
+                        stones.push({ x: currentGiganotosaurus.x + giganotosaurusWidth / 2 - 15, y: currentGiganotosaurus.y + giganotosaurusHeight, radius: stoneRadius }); // Left
+                        stones.push({ x: currentGiganotosaurus.x + giganotosaurusWidth / 2 + 15, y: currentGiganotosaurus.y + giganotosaurusHeight, radius: stoneRadius }); // Right
+                    }
+                    currentGiganotosaurus.lastShotTime = currentTime;
                 }
 
-                if (giganotosauruses[i].y + giganotosaurusHeight > canvas.height) {
+                if (currentGiganotosaurus.y + giganotosaurusHeight > canvas.height) {
                     // Giganotosaurus reached bottom, game over
                     endGame("¡Un Giganotosaurio ha llegado al final! ¡Fin del juego!");
                     return;
@@ -871,7 +1214,7 @@
                             // Resume normal enemy spawning, possibly with increased difficulty
                             dinosaurSpawnRateIncreased = false; // Reset to allow re-triggering if needed
                             dinosaurSpawnInterval = 1000; // Make normal dinosaurs faster after boss
-                            velociraptorSpawnInterval = 800; // Make velociraptors faster
+                            velociraptorSpawnInterval = 1000; // Make velociraptors faster
                         }
                         break; // Break inner loop as spear is removed
                     }
@@ -969,7 +1312,8 @@
 
         // Draw all game elements
         function draw() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear main canvas
+            ctx.drawImage(backgroundCanvas, 0, 0); // Draw pre-rendered background
 
             drawPlayer();
             drawShield(); // Draw shield after player, so it appears around them
@@ -1005,8 +1349,8 @@
             hasMultiSpear = false;
             isShieldActive = false;
             dinosaurSpawnRateIncreased = false; // Reset flag
-            dinosaurSpawnInterval = 1500; // Reset to initial value
-            velociraptorSpawnInterval = 1000; // Ensure velociraptor spawn interval is reset
+            dinosaurSpawnInterval = 1000; // Reset to initial value (1 second)
+            velociraptorSpawnInterval = 1000; // Ensure velociraptor spawn interval is reset (1 second)
             // Boss related resets
             bossActive = false;
             bossHealth = 0;
@@ -1107,6 +1451,7 @@
         rightButton.addEventListener('touchend', () => { playerMovingRight = false; });
         shieldButton.addEventListener('touchstart', (e) => {
             e.preventDefault();
+            // Toggle shield state on touch
             isShieldActive = !isShieldActive;
             playSound('shield'); // Play shield sound on toggle
         });
@@ -1114,7 +1459,8 @@
         // Initial start of the game
         window.onload = function() {
             initMusic(); // Initialize Tone.js components
-            startGame();
+            resizeCanvas(); // Set initial canvas dimensions, initialize background, and draw.
+            startGame(); // Start the game loop.
         };
     </script>
 </body>
